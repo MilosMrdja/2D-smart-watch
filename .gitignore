@@ -1,41 +1,100 @@
-# Prerequisites
-*.d
+############################
+# Visual Studio
+############################
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
+############################
+# Build folders (Debug/Release)
+############################
+Debug/
+Release/
+x64/
+x86/
+build/
+out/
+bin/
+obj/
 *.obj
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.iobj
+*.ipdb
 
-# Precompiled Headers
+############################
+# C++ / GCC / Clang
+############################
+*.o
+*.a
+*.lo
+*.la
+*.lai
 *.gch
 *.pch
+*.stackdump
 
-# Linker files
-*.ilk
+# precompiled headers
+*.pchi
 
-# Debugger Files
-*.pdb
+############################
+# CMake (ako ga budeš koristio)
+############################
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
 
-# Compiled Dynamic libraries
+############################
+# OpenGL vendors
+############################
+
+# GLAD (generated files should be included only if needed)
+generated/
+glad.zip
+
+# GLFW binaries (ako koristiš precompiled)
+glfw*/build/
+glfw*/docs/
+glfw*/tests/
+glfw*/examples/
+
+# stb ima samo 1 header → ne ignorise se
+
+############################
+# Logs / Temp
+############################
+*.log
+*.tlog
+*.tmp
+*.temp
+*.cache
+
+############################
+# Ignore executables
+############################
+*.exe
+*.dll
 *.so
 *.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
 *.app
 
-# debug information files
-*.dwo
+############################
+# Ignore shader binaries (compiled)
+############################
+*.spv
+*.spirv
+
+############################
+# Ignore misc
+############################
+*.opendb
+*.VC.db
+*.DS_Store
+Thumbs.db

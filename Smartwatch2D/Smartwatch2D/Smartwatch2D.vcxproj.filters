@@ -38,6 +38,9 @@
     <None Include="basic.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="ekg.frag">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="basic.vert">

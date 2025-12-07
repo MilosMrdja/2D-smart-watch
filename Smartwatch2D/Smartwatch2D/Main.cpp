@@ -18,12 +18,6 @@ enum ScreenState {
 ScreenState currentScreen = SCREEN_CLOCK;
 bool mousePressedLastFrame = false;
 
-float ekgOffset = 0.0f; // horizontalno pomeranje teksture
-float ekgSpeed = 0.01f; // brzina pomeranja grafika
-float ekgScaleX = 1.0f; // koliko se sužava/širi grafika
-int bpm = 60;           // trenutni BPM
-float timeAccumulator = 0.0f; // za simulaciju random BPM promena
-
 
 unsigned int digitTextures[10];
 unsigned int colonTexture;
@@ -99,6 +93,8 @@ void drawQuad(unsigned int& VAO, unsigned int shader, unsigned int texture, floa
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
+
+
 void drawTime(unsigned int VAO, unsigned int shader, float scale,
     unsigned int digits[10], unsigned int colonTex)
 {
@@ -106,11 +102,11 @@ void drawTime(unsigned int VAO, unsigned int shader, float scale,
     std::tm now{};
 
     // ako neko pokrece na masini koja nije windows
-#if defined(_WIN32) || defined(_WIN64)
-    localtime_s(&now, &t);
-#else
-    localtime_r(&t, &now);
-#endif
+    #if defined(_WIN32) || defined(_WIN64)
+        localtime_s(&now, &t);
+    #else
+        localtime_r(&t, &now);
+    #endif
 
     int hours = now.tm_hour;
     int minutes = now.tm_min;
@@ -140,8 +136,9 @@ void drawTime(unsigned int VAO, unsigned int shader, float scale,
     drawQuad(VAO, shader, digits[s2], startX, y, scale);
 }
 
+
 void drawQuadEKG(unsigned int VAO, unsigned int shader, unsigned int texture,
-                 float x, float y, float scale, float offset, float scaleX)
+    float x, float y, float scale, float offset, float scaleX)
 {
     glUseProgram(shader);
     glUniform1f(glGetUniformLocation(shader, "uX"), x);
@@ -179,8 +176,7 @@ void drawNumber(unsigned int VAO, unsigned int shader, int number,
         std::reverse(digitsVec.begin(), digitsVec.end());
     }
 
-    // horizontalni offset za crtanje (centriranje)
-    float spacing = scale * 0.6f; // malo veće od scale
+    float spacing = scale * 1.0f;
     float totalWidth = digitsVec.size() * spacing;
     float startX = x - totalWidth / 2.0f;
 
@@ -190,6 +186,65 @@ void drawNumber(unsigned int VAO, unsigned int shader, int number,
         startX += spacing;
     }
 }
+void drawEKGScreen(
+    GLFWwindow* window,
+    unsigned int VAO,
+    unsigned int shader,
+    unsigned int ekgShader,
+    unsigned int ekgTexture,
+    unsigned int warningTexture,
+    unsigned int digits[10],
+    float dt,
+    float& ekgOffset,
+    float& ekgScaleX,
+    int& bpm,
+    float& bpmTimer,
+    float& dHoldTimer // novi parametar, meri koliko dugo D držiš
+) {
+    // Pomeri ekg sporo
+    ekgOffset -= 0.08f * dt;
+    if (ekgOffset <= -1.0f) ekgOffset += 1.0f;
+
+    // Provera da li je D pritisnut
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        dHoldTimer += dt;
+        // Povecaj bpm svakih 0.5 sekundi
+        if (dHoldTimer >= 0.5f) {
+            bpm += 1;
+            if (bpm > 110) bpm = 110; // limit
+            dHoldTimer = 0.0f;
+        }
+        // Sužavanje EKG grafike
+        ekgScaleX += 0.15f * dt;
+        //if (ekgScaleX < 0.25f) ekgScaleX = 0.25f;
+
+        if (bpm >= 110) {
+            drawQuad(VAO, shader, warningTexture, 0.0f, 0.0f, 1.0f);
+        }
+        else {
+            drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, -0.1f, 0.8f, ekgOffset, ekgScaleX);
+        }
+    }
+    else {
+        // D nije pritisnut → vrati bpm u normalu
+        dHoldTimer = 0.0f;
+        bpmTimer += dt;
+        if (bpmTimer >= 4.0f) {
+            bpm = 60 + rand() % 21; // 60-80
+            bpmTimer = 0.0f;
+        }
+
+        drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, -0.1f, 0.8f, ekgOffset, ekgScaleX);
+        // Resetovanje skaliranja
+        ekgScaleX = 1.0f;
+    }
+
+    drawNumber(VAO, shader, bpm, 0.0f, 0.60f, 0.1f, digits);
+}
+
+
+
+
 
 
 void createQuad(unsigned int& VAO, unsigned int& VBO) {
@@ -231,25 +286,16 @@ void preprocessTexture(unsigned& texture, const char* filepath) {
 
 
 void loadTextures() {
-    for (int i = 1; i <= 9; i++) {
-        if (i == 3 || i == 7) {
-            std::string path = "Resources/1.jpeg";
-            preprocessTexture(digitTextures[i], path.c_str());
-            //digitTextures[i] = loadImageToTexture(path.c_str());
-        }
-        else {
-            std::string path = "Resources/" + std::to_string(i) + ".jpeg";
-            preprocessTexture(digitTextures[i], path.c_str());
-            //digitTextures[i] = loadImageToTexture(path.c_str());
-        }
-
+    for (int i = 0; i <= 9; i++) {
+         std::string path = "Resources/" + std::to_string(i) + ".png";
+         preprocessTexture(digitTextures[i], path.c_str());
     }
     preprocessTexture(colonTexture, "Resources/colon.png");
     preprocessTexture(screenState[0], "Resources/heart_cursor.png");
     preprocessTexture(screenState[1], "Resources/heart_cursor.png");
     preprocessTexture(screenState[2], "Resources/heart_cursor.png");
-    preprocessTexture(arrowLeft, "Resources/left.jpg");
-    preprocessTexture(arrowRight, "Resources/right.jpeg");
+    preprocessTexture(arrowLeft, "Resources/arrow-left.png");
+    preprocessTexture(arrowRight, "Resources/arrow-right.png");
     preprocessTexture(ekgTexture, "Resources/ekg.jpeg");
     preprocessTexture(warningTexture, "Resources/warning.jpeg");
 
@@ -308,48 +354,46 @@ int main() {
     unsigned int VAO, VBO;
     createQuad(VAO, VBO);
 
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+
 
     const float arrowXOffset = 0.7f;
     const float arrowY = 0.0f;
-    const float arrowScale = 0.25f;
+    const float arrowScale = 0.20f;
+
     const float mainScale = 0.8f;
+
+    float ekgOffset = 0.0f;      // horizontalno pomeranje teksture
+    float ekgScaleX = 1.0f;      // horizontalno suženje/širenje EKG
+    int bpm = 60;                 // trenutni BPM
+    float bpmTimer = 0.0f;        // za randomizaciju BPM
+    float dHoldTimer = 0.0f;      // meri koliko dugo je D pritisnut
+
+    double lastTime = glfwGetTime();
+
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT);
+        double currentTime = glfwGetTime();
+        float dt = float(currentTime - lastTime);
+        lastTime = currentTime;
+
 
         if (currentScreen == SCREEN_CLOCK) {
             drawTime(VAO, shader, 0.15f, digitTextures, colonTexture);
         }
         else if (currentScreen == SCREEN_HEART) {
-            // horizontalno pomeranje teksture
-            ekgOffset -= ekgSpeed;
-            if (ekgOffset <= -1.0f) ekgOffset += 1.0f; // repeat texture
-
-            // random BPM promena između 60-80
-            timeAccumulator += 0.016f; // frame delta ~60fps
-            if (timeAccumulator >= 1.0f) {
-                bpm = 60 + rand() % 21;
-                timeAccumulator = 0.0f;
-            }
-
-            // Simulacija trčanja tasterom D
-            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                bpm += 1;        // polako povećavamo
-                ekgScaleX -= 0.005f; // sužavamo graf
-                if (ekgScaleX < 0.2f) ekgScaleX = 0.2f;
-            }
-
-            // Prikaz upozorenja ako bpm > 200
-            if (bpm > 200) {
-                // crtanje crvenog kvadrata preko ekrana
-                drawQuad(VAO, shader, warningTexture, 0.0f, 0.0f, 2.0f);
-            }
-
-            drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, 0.0f, 0.8f,ekgOffset, ekgScaleX);
-
-            // crtanje BPM iznad grafika
-            drawNumber(VAO, shader, bpm, 0.0f, 0.8f, 0.1f, digitTextures);
+            drawEKGScreen(window,
+                VAO, shader,
+                ekgShader,
+                ekgTexture,
+                warningTexture,
+                digitTextures,
+                dt,                
+                ekgOffset, ekgScaleX,
+                bpm,
+                bpmTimer,
+                dHoldTimer);
         }else {
             drawQuad(VAO, shader, screenState[currentScreen], 0.0f, 0.0f, mainScale);
         }

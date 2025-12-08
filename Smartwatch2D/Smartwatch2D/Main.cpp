@@ -114,7 +114,7 @@ int main() {
 
         // baterija
         batteryTimer += dt;
-        if (batteryTimer >= 0.5f) { 
+        if (batteryTimer >= 10.0f) { 
             batteryPercent -= 1.0f;
             if (batteryPercent < 0.0f) batteryPercent = 100.0f;
             batteryTimer = 0.0f;
@@ -133,7 +133,7 @@ int main() {
             ekgScaleX += 1.2f * dt;
             if (ekgScaleX > 5.0f) ekgScaleX = 5.0f;
 
-            ekgOffset -= 1.3f * dt;
+            ekgOffset += 1.3f * dt;
         }
         else {
             dHoldTimer = 0;

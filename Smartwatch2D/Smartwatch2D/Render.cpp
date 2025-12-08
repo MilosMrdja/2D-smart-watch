@@ -141,8 +141,8 @@ void drawEKGScreen(
     float& ekgScaleX,
     int& bpm
 ) {
-    ekgOffset -= 0.08f * dt;
-    if (ekgOffset <= -1.0f) ekgOffset += 1.0f;
+    ekgOffset += 0.08f * dt;
+    if (ekgOffset >= 1.0f) ekgOffset -= 1.0f;
 
 
 

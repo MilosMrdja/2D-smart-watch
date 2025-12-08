@@ -239,37 +239,12 @@ void drawEKGScreen(
     float dt,
     float& ekgOffset,
     float& ekgScaleX,
-    int& bpm,
-    float& bpmTimer,
-    float& dHoldTimer
+    int& bpm
 ) {
     ekgOffset -= 0.08f * dt;
     if (ekgOffset <= -1.0f) ekgOffset += 1.0f;
 
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        dHoldTimer += dt;
 
-        if (dHoldTimer >= 0.1f) {
-            bpm += 1;
-            if (bpm > 200) bpm = 200;
-            dHoldTimer = 0.0f;
-        }
-
-        ekgScaleX += 1.4f * dt;
-        if (ekgScaleX > 5.0f) ekgScaleX = 5.0f;
-
-        ekgOffset -= 1.3f * dt;
-    }
-    else {
-        dHoldTimer = 0.0f;
-        bpmTimer += dt;
-        if (bpmTimer >= 2.0f) {
-            bpm = 60 + rand() % 21; // 60-80
-            bpmTimer = 0.0f;
-        }
-
-        ekgScaleX = 1.0f;
-    }
 
     if (bpm >= 200) {
         drawQuad(VAO, shader, warningTexture, 0.0f, 0.0f, 0.8f);
@@ -432,6 +407,32 @@ int main() {
             if (batteryPercent < 0.0f) batteryPercent = 100.0f;
             batteryTimer = 0.0f;
         }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            dHoldTimer += dt;
+
+            if (dHoldTimer >= 0.1f) {
+                bpm += 1;
+                if (bpm > 200) bpm = 200;
+                dHoldTimer = 0.0f;
+            }
+
+            ekgScaleX += 1.2f * dt;
+            if (ekgScaleX > 5.0f) ekgScaleX = 5.0f;
+
+            ekgOffset -= 1.3f * dt;
+        }
+        else {
+            dHoldTimer = 0;
+            bpmTimer += dt;
+            if (bpmTimer >= 2.0f) {
+                bpm = 60 + rand() % 21;
+                bpmTimer = 0.0f;
+            }
+            ekgScaleX = 1.0f;
+        }
+        
+
+        
 
         drawQuad(VAO, shader, studentTexture, 0.7f, -0.7f, 0.3f);
 
@@ -441,7 +442,7 @@ int main() {
         }
         else if (currentScreen == SCREEN_HEART) {
             drawEKGScreen(window, VAO, shader, ekgShader, ekgTexture, warningTexture, digitTextures,
-                dt, ekgOffset, ekgScaleX, bpm, bpmTimer, dHoldTimer);
+                dt, ekgOffset, ekgScaleX, bpm);
         }
         else if (currentScreen == SCREEN_BATTERY) {
             drawBatteryFrame(VAO, batteryShader, batteryCenterX, batteryCenterY, batteryWidth, batteryHeight, batteryBorder);

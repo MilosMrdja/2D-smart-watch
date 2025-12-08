@@ -41,6 +41,12 @@
     <None Include="ekg.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="battery.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="battery.vert">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="basic.vert">

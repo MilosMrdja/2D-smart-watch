@@ -137,6 +137,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="basic.frag" />
+    <None Include="battery.frag" />
+    <None Include="battery.vert" />
     <None Include="ekg.frag" />
     <None Include="packages.config" />
   </ItemGroup>

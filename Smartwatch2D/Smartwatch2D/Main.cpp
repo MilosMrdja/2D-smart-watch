@@ -137,6 +137,44 @@ void drawTime(unsigned int VAO, unsigned int shader, float scale,
 }
 
 
+void drawBattery(unsigned int VAO, unsigned int shader, float x, float y,
+    float width, float height, float percent)
+{
+    // Boja na osnovu procenta
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    if (percent <= 10.0f) { r = 1.0f; g = 0.0f; b = 0.0f; } // crveno
+    else if (percent <= 20.0f) { r = 1.0f; g = 1.0f; b = 0.0f; } // žuto
+    else { r = 0.0f; g = 1.0f; b = 0.0f; } // zeleno
+
+    glUseProgram(shader);
+    glUniform3f(glGetUniformLocation(shader, "uColor"), r, g, b);
+
+    // Skaliranje quad-a horizontalno prema procentu baterije
+    glUniform1f(glGetUniformLocation(shader, "uScaleX"), percent / 100.0f);
+    glUniform1f(glGetUniformLocation(shader, "uX"), x + (percent / 100.0f - 1.0f) / 2.0f * width); // desno zalepljeno
+    glUniform1f(glGetUniformLocation(shader, "uY"), y);
+    glUniform1f(glGetUniformLocation(shader, "uScaleY"), height);
+
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+}
+
+void drawBatteryFrame(unsigned int VAO, unsigned int shader, float x, float y, float width, float height, float border)
+{
+    glUseProgram(shader);
+    glUniform3f(glGetUniformLocation(shader, "uColor"), 1.0f, 1.0f, 1.0f); // bela
+
+    // Skaliranje malo veće da formira okvir
+    glUniform1f(glGetUniformLocation(shader, "uX"), x);
+    glUniform1f(glGetUniformLocation(shader, "uY"), y);
+    glUniform1f(glGetUniformLocation(shader, "uScaleX"), width + border);
+    glUniform1f(glGetUniformLocation(shader, "uScaleY"), height + border);
+
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_LINE_LOOP, 0, 4); // LINE_LOOP za okvir
+}
+
+
 void drawQuadEKG(unsigned int VAO, unsigned int shader, unsigned int texture,
     float x, float y, float scale, float offset, float scaleX)
 {
@@ -296,8 +334,8 @@ void loadTextures() {
     preprocessTexture(screenState[2], "Resources/heart_cursor.png");
     preprocessTexture(arrowLeft, "Resources/arrow-left.png");
     preprocessTexture(arrowRight, "Resources/arrow-right.png");
-    preprocessTexture(ekgTexture, "Resources/ekg.jpeg");
-    preprocessTexture(warningTexture, "Resources/warning.jpeg");
+    preprocessTexture(ekgTexture, "Resources/ekg.png");
+    preprocessTexture(warningTexture, "Resources/warning.png");
 
 
     /*
@@ -346,6 +384,7 @@ int main() {
     // Shaders
     unsigned int shader = createShader("basic.vert", "basic.frag");
     unsigned int ekgShader = createShader("basic.vert", "ekg.frag");
+    unsigned int batteryShader = createShader("battery.vert", "battery.frag");
 
     glUseProgram(shader);
     glUniform1i(glGetUniformLocation(shader, "uTex0"), 0);
@@ -361,8 +400,7 @@ int main() {
     const float arrowY = 0.0f;
     const float arrowScale = 0.20f;
 
-    const float mainScale = 0.8f;
-
+    // ekg
     float ekgOffset = 0.0f;      // horizontalno pomeranje teksture
     float ekgScaleX = 1.0f;      // horizontalno suženje/širenje EKG
     int bpm = 60;                 // trenutni BPM
@@ -370,6 +408,16 @@ int main() {
     float dHoldTimer = 0.0f;      // meri koliko dugo je D pritisnut
 
     double lastTime = glfwGetTime();
+
+    // baterija
+    float batteryPercent = 100.0f;      // početna napunjenost
+    float batteryTimer = 0.0f;           // akumulator vremena za smanjenje
+    const float batteryDecreaseInterval = 10.0f; // svake 10 sekundi -1%
+    float batteryWidth = 0.4f;   // širina baterije
+    float batteryHeight = 0.2f;  // visina baterije
+    float batteryX = 0.0f;       // centar X
+    float batteryY = 0.0f;       // centar Y
+    float batteryBorder = 0.02f; // okvir
 
 
     while (!glfwWindowShouldClose(window)) {
@@ -394,11 +442,22 @@ int main() {
                 bpm,
                 bpmTimer,
                 dHoldTimer);
-        }else {
-            drawQuad(VAO, shader, screenState[currentScreen], 0.0f, 0.0f, mainScale);
+        }
+        else if (currentScreen == SCREEN_BATTERY) {
+            // Update baterije
+            batteryTimer += dt;
+            if (batteryTimer >= batteryDecreaseInterval) {
+                batteryPercent -= 1.0f;
+                if (batteryPercent < 0.0f) batteryPercent = 0.0f;
+                batteryTimer = 0.0f;
+            }
+
+            drawBattery(VAO, batteryShader, batteryX, batteryY, batteryWidth, batteryHeight, batteryPercent);
+            drawBatteryFrame(VAO, batteryShader, batteryX, batteryY, batteryWidth, batteryHeight, batteryBorder);
+            drawNumber(VAO, shader, int(batteryPercent), batteryX, batteryY + batteryHeight / 2 + 0.05f, 0.1f, digitTextures);
         }
 
-        // --- crtanje strelica u zavisnosti od ekrana ---
+
         bool drawLeft = false, drawRight = false;
         switch (currentScreen) {
         case SCREEN_CLOCK:  drawRight = true; break;

@@ -4,6 +4,9 @@
 #include <ctime>
 #include "Util.h"
 #include <vector>
+#include <thread>    
+#include <chrono>    
+
 
 
 GLFWcursor* cursor;
@@ -26,6 +29,10 @@ unsigned int arrowRight;
 unsigned int screenState[3];
 unsigned int warningTexture;
 unsigned int ekgTexture;
+unsigned int studentTexture;
+unsigned int percentageTexture;
+unsigned int bpmTexture;
+
 
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -137,42 +144,48 @@ void drawTime(unsigned int VAO, unsigned int shader, float scale,
 }
 
 
-void drawBattery(unsigned int VAO, unsigned int shader, float x, float y,
-    float width, float height, float percent)
+void drawBatteryProgress(unsigned int VAO, unsigned int shader,
+    float centerX, float centerY,
+    float width, float height,
+    float percent)
 {
-    // Boja na osnovu procenta
-    float r = 0.0f, g = 0.0f, b = 0.0f;
-    if (percent <= 10.0f) { r = 1.0f; g = 0.0f; b = 0.0f; } // crveno
-    else if (percent <= 20.0f) { r = 1.0f; g = 1.0f; b = 0.0f; } // žuto
-    else { r = 0.0f; g = 1.0f; b = 0.0f; } // zeleno
+    float r = 0.0f, g = 1.0f, b = 0.0f;
+    if (percent <= 10.0f) { r = 1.0f; g = 0.0f; b = 0.0f; }
+    else if (percent <= 20.0f) { r = 1.0f; g = 1.0f; b = 0.0f; }
 
     glUseProgram(shader);
     glUniform3f(glGetUniformLocation(shader, "uColor"), r, g, b);
 
-    // Skaliranje quad-a horizontalno prema procentu baterije
-    glUniform1f(glGetUniformLocation(shader, "uScaleX"), percent / 100.0f);
-    glUniform1f(glGetUniformLocation(shader, "uX"), x + (percent / 100.0f - 1.0f) / 2.0f * width); // desno zalepljeno
-    glUniform1f(glGetUniformLocation(shader, "uY"), y);
+    float innerWidth = width * (percent / 100.0f);
+
+    float xPos = centerX + (width - innerWidth) / 2.0f;
+
+    glUniform1f(glGetUniformLocation(shader, "uX"), xPos);
+    glUniform1f(glGetUniformLocation(shader, "uY"), centerY);
+    glUniform1f(glGetUniformLocation(shader, "uScaleX"), innerWidth);
     glUniform1f(glGetUniformLocation(shader, "uScaleY"), height);
 
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
-void drawBatteryFrame(unsigned int VAO, unsigned int shader, float x, float y, float width, float height, float border)
+void drawBatteryFrame(unsigned int VAO, unsigned int shader,
+    float centerX, float centerY,
+    float width, float height,
+    float border)
 {
     glUseProgram(shader);
-    glUniform3f(glGetUniformLocation(shader, "uColor"), 1.0f, 1.0f, 1.0f); // bela
+    glUniform3f(glGetUniformLocation(shader, "uColor"), 0.0f, 0.0f, 0.0f);
 
-    // Skaliranje malo veće da formira okvir
-    glUniform1f(glGetUniformLocation(shader, "uX"), x);
-    glUniform1f(glGetUniformLocation(shader, "uY"), y);
-    glUniform1f(glGetUniformLocation(shader, "uScaleX"), width + border);
-    glUniform1f(glGetUniformLocation(shader, "uScaleY"), height + border);
+    glUniform1f(glGetUniformLocation(shader, "uX"), centerX);
+    glUniform1f(glGetUniformLocation(shader, "uY"), centerY);
+    glUniform1f(glGetUniformLocation(shader, "uScaleX"), width);
+    glUniform1f(glGetUniformLocation(shader, "uScaleY"), height);
 
     glBindVertexArray(VAO);
-    glDrawArrays(GL_LINE_LOOP, 0, 4); // LINE_LOOP za okvir
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
 }
+
 
 
 void drawQuadEKG(unsigned int VAO, unsigned int shader, unsigned int texture,
@@ -191,17 +204,9 @@ void drawQuadEKG(unsigned int VAO, unsigned int shader, unsigned int texture,
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
-
-// Funkcija za crtanje broja na ekranu
-// VAO, shader - tvoj quad i shader
-// number - broj koji se crta (npr. 75)
-// x, y - centar broja na ekranu
-// scale - veličina svake cifre
-// digits - niz tekstura cifara [0..9]
 void drawNumber(unsigned int VAO, unsigned int shader, int number,
     float x, float y, float scale, unsigned int digits[10])
 {
-    // Razdvajanje broja na cifre
     int n = number;
     std::vector<int> digitsVec;
 
@@ -218,7 +223,6 @@ void drawNumber(unsigned int VAO, unsigned int shader, int number,
     float totalWidth = digitsVec.size() * spacing;
     float startX = x - totalWidth / 2.0f;
 
-    // crtanje svake cifre
     for (int d : digitsVec) {
         drawQuad(VAO, shader, digits[d], startX, y, scale);
         startX += spacing;
@@ -237,47 +241,46 @@ void drawEKGScreen(
     float& ekgScaleX,
     int& bpm,
     float& bpmTimer,
-    float& dHoldTimer // novi parametar, meri koliko dugo D držiš
+    float& dHoldTimer
 ) {
-    // Pomeri ekg sporo
     ekgOffset -= 0.08f * dt;
     if (ekgOffset <= -1.0f) ekgOffset += 1.0f;
 
-    // Provera da li je D pritisnut
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         dHoldTimer += dt;
-        // Povecaj bpm svakih 0.5 sekundi
-        if (dHoldTimer >= 0.5f) {
+
+        if (dHoldTimer >= 0.1f) {
             bpm += 1;
-            if (bpm > 110) bpm = 110; // limit
+            if (bpm > 200) bpm = 200;
             dHoldTimer = 0.0f;
         }
-        // Sužavanje EKG grafike
-        ekgScaleX += 0.15f * dt;
-        //if (ekgScaleX < 0.25f) ekgScaleX = 0.25f;
 
-        if (bpm >= 110) {
-            drawQuad(VAO, shader, warningTexture, 0.0f, 0.0f, 1.0f);
-        }
-        else {
-            drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, -0.1f, 0.8f, ekgOffset, ekgScaleX);
-        }
+        ekgScaleX += 1.4f * dt;
+        if (ekgScaleX > 5.0f) ekgScaleX = 5.0f;
+
+        ekgOffset -= 1.3f * dt;
     }
     else {
-        // D nije pritisnut → vrati bpm u normalu
         dHoldTimer = 0.0f;
         bpmTimer += dt;
-        if (bpmTimer >= 4.0f) {
+        if (bpmTimer >= 2.0f) {
             bpm = 60 + rand() % 21; // 60-80
             bpmTimer = 0.0f;
         }
 
-        drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, -0.1f, 0.8f, ekgOffset, ekgScaleX);
-        // Resetovanje skaliranja
         ekgScaleX = 1.0f;
     }
 
-    drawNumber(VAO, shader, bpm, 0.0f, 0.60f, 0.1f, digits);
+    if (bpm >= 200) {
+        drawQuad(VAO, shader, warningTexture, 0.0f, 0.0f, 0.8f);
+    }
+    else {
+        drawQuadEKG(VAO, ekgShader, ekgTexture, 0.0f, -0.1f, 0.8f, ekgOffset, ekgScaleX);
+    }
+
+    drawNumber(VAO, shader, bpm, 0.0f, 0.6f, 0.1f, digits);
+    drawQuad(VAO, shader, bpmTexture, 0.15f, 0.6f, 0.15f);
+
 }
 
 
@@ -336,14 +339,9 @@ void loadTextures() {
     preprocessTexture(arrowRight, "Resources/arrow-right.png");
     preprocessTexture(ekgTexture, "Resources/ekg.png");
     preprocessTexture(warningTexture, "Resources/warning.png");
-
-
-    /*
-        colonTexture = loadImageToTexture("Resources/colon1.png");
-    screenState[0] = loadImageToTexture("Resources/heart_cursor.png");
-    screenState[1] = loadImageToTexture("Resources/heart_cursor.png");
-    screenState[2] = loadImageToTexture("Resources/heart_cursor.png");
-    */
+    preprocessTexture(studentTexture, "Resources/student.png");
+    preprocessTexture(percentageTexture, "Resources/percentage.png");
+    preprocessTexture(bpmTexture, "Resources/bpm.png");
 }
 
 
@@ -375,6 +373,7 @@ int main() {
     // --- GLEW ---
     if (glewInit() != GLEW_OK) return -1;
 
+    // za transparentnost
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -401,63 +400,57 @@ int main() {
     const float arrowScale = 0.20f;
 
     // ekg
-    float ekgOffset = 0.0f;      // horizontalno pomeranje teksture
-    float ekgScaleX = 1.0f;      // horizontalno suženje/širenje EKG
-    int bpm = 60;                 // trenutni BPM
-    float bpmTimer = 0.0f;        // za randomizaciju BPM
-    float dHoldTimer = 0.0f;      // meri koliko dugo je D pritisnut
+    float ekgOffset = 0.0f;      
+    float ekgScaleX = 1.0f;     
+    int bpm = 60;                 
+    float bpmTimer = 0.0f;       
+    float dHoldTimer = 0.0f;      
 
     double lastTime = glfwGetTime();
 
     // baterija
-    float batteryPercent = 100.0f;      // početna napunjenost
-    float batteryTimer = 0.0f;           // akumulator vremena za smanjenje
-    const float batteryDecreaseInterval = 10.0f; // svake 10 sekundi -1%
-    float batteryWidth = 0.4f;   // širina baterije
-    float batteryHeight = 0.2f;  // visina baterije
-    float batteryX = 0.0f;       // centar X
-    float batteryY = 0.0f;       // centar Y
-    float batteryBorder = 0.02f; // okvir
+    float batteryPercent = 100.0f;
+    float batteryTimer = 0.0f;
 
+    float batteryCenterX = 0.0f;  // centar ekrana
+    float batteryCenterY = 0.0f;
+    float batteryWidth = 0.8f;    // širina okvira
+    float batteryHeight = 0.25f;   // visina
+    float batteryBorder = 0.8f;
+
+    float frameTime = 1.0f / 75.0f;
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT);
+
         double currentTime = glfwGetTime();
         float dt = float(currentTime - lastTime);
-        lastTime = currentTime;
 
+        batteryTimer += dt;
+        if (batteryTimer >= 0.5f) { 
+            batteryPercent -= 1.0f;
+            if (batteryPercent < 0.0f) batteryPercent = 100.0f;
+            batteryTimer = 0.0f;
+        }
 
+        drawQuad(VAO, shader, studentTexture, 0.7f, -0.7f, 0.3f);
+
+        // DRAW SCREEN
         if (currentScreen == SCREEN_CLOCK) {
             drawTime(VAO, shader, 0.15f, digitTextures, colonTexture);
         }
         else if (currentScreen == SCREEN_HEART) {
-            drawEKGScreen(window,
-                VAO, shader,
-                ekgShader,
-                ekgTexture,
-                warningTexture,
-                digitTextures,
-                dt,                
-                ekgOffset, ekgScaleX,
-                bpm,
-                bpmTimer,
-                dHoldTimer);
+            drawEKGScreen(window, VAO, shader, ekgShader, ekgTexture, warningTexture, digitTextures,
+                dt, ekgOffset, ekgScaleX, bpm, bpmTimer, dHoldTimer);
         }
         else if (currentScreen == SCREEN_BATTERY) {
-            // Update baterije
-            batteryTimer += dt;
-            if (batteryTimer >= batteryDecreaseInterval) {
-                batteryPercent -= 1.0f;
-                if (batteryPercent < 0.0f) batteryPercent = 0.0f;
-                batteryTimer = 0.0f;
-            }
-
-            drawBattery(VAO, batteryShader, batteryX, batteryY, batteryWidth, batteryHeight, batteryPercent);
-            drawBatteryFrame(VAO, batteryShader, batteryX, batteryY, batteryWidth, batteryHeight, batteryBorder);
-            drawNumber(VAO, shader, int(batteryPercent), batteryX, batteryY + batteryHeight / 2 + 0.05f, 0.1f, digitTextures);
+            drawBatteryFrame(VAO, batteryShader, batteryCenterX, batteryCenterY, batteryWidth, batteryHeight, batteryBorder);
+            drawBatteryProgress(VAO, batteryShader, batteryCenterX, batteryCenterY, batteryWidth, batteryHeight, batteryPercent);
+            drawNumber(VAO, shader, int(batteryPercent), batteryCenterX, 0.6, 0.1f, digitTextures);
+            drawQuad(VAO, shader, percentageTexture, batteryCenterX + 0.15, 0.6f, 0.1f);
         }
 
-
+        // Arrows
         bool drawLeft = false, drawRight = false;
         switch (currentScreen) {
         case SCREEN_CLOCK:  drawRight = true; break;
@@ -467,13 +460,22 @@ int main() {
 
         if (drawLeft)  drawQuad(VAO, shader, arrowLeft, -arrowXOffset, arrowY, arrowScale);
         if (drawRight) drawQuad(VAO, shader, arrowRight, arrowXOffset, arrowY, arrowScale);
-        
-        handleArrowClicks(currentScreen, drawLeft, drawRight, arrowXOffset, arrowY, arrowScale,
-            window, mousePressedLastFrame);
+
+        handleArrowClicks(currentScreen, drawLeft, drawRight, arrowXOffset, arrowY, arrowScale, window, mousePressedLastFrame);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        // FRAME LIMITER
+        double frameEndTime = glfwGetTime();
+        float sleepTime = frameTime - float(frameEndTime - currentTime);
+        if (sleepTime > 0.0f) {
+            std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
+        }
+
+        lastTime = currentTime;
     }
+
 
     glDeleteProgram(shader);
     glfwDestroyWindow(window);

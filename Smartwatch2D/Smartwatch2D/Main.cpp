@@ -10,6 +10,40 @@
 #include <thread>    
 #include <chrono>    
 
+struct SimTime {
+    int hour;
+    int minute;
+    int second;
+};
+
+SimTime simulateClock(float dt) {
+    static float accumulator = 0.0f;
+    static SimTime time = { 12, 59, 55 }; 
+
+    accumulator += dt;
+
+    if (accumulator >= 1.0f) { 
+        accumulator -= 1.0f;
+
+        time.second++;
+
+        if (time.second >= 60) {
+            time.second = 0;
+            time.minute++;
+        }
+        if (time.minute >= 60) {
+            time.minute = 0;
+            time.hour++;
+        }
+        if (time.hour >= 24) {
+            time.hour = 0;
+        }
+    }
+
+    return time;
+}
+
+
 void createQuad(unsigned int& VAO, unsigned int& VBO) {
     // Quad po defaultu [-0.5,0.5] u oba pravca
     float vertices[] = {
@@ -156,6 +190,9 @@ int main() {
         #else
                 localtime_r(&t, &now);
         #endif
+                
+        //SimTime now = simulateClock(dt);
+
 
         // name
         drawQuad(VAO, shader, studentTexture, 0.7f, -0.7f, 0.3f);

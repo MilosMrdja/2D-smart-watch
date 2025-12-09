@@ -112,7 +112,7 @@ int main() {
     unsigned int VAO, VBO;
     createQuad(VAO, VBO);
 
-    glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+    glClearColor(0.6f, 0.6f, 0.6f, 1.0f);
 
 
     const float arrowXOffset = 0.7f;
